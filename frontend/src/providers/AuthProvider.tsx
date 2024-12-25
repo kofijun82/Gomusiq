@@ -3,50 +3,59 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { useChatStore } from "@/stores/useChatStore";
 import { useAuth } from "@clerk/clerk-react";
 import { Loader } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 const updateApiToken = (token: string | null) => {
-	if (token) axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-	else delete axiosInstance.defaults.headers.common["Authorization"];
+  if (token) axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  else delete axiosInstance.defaults.headers.common["Authorization"];
 };
 
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-	const { getToken, userId } = useAuth();
-	const [loading, setLoading] = useState(true);
-	const { checkAdminStatus } = useAuthStore();
-	const { initSocket, disconnectSocket } = useChatStore();
+  const { getToken, userId } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const { checkAdminStatus } = useAuthStore();
+  const { initSocket, disconnectSocket } = useChatStore();
 
-	useEffect(() => {
-		const initAuth = async () => {
-			try {
-				const token = await getToken();
-				updateApiToken(token);
-				if (token) {
-					await checkAdminStatus();
-					// init socket
-					if (userId) initSocket(userId);
-				}
-			} catch (error: any) {
-				updateApiToken(null);
-				console.log("Error in auth provider", error);
-			} finally {
-				setLoading(false);
-			}
-		};
+  // Memoize functions to avoid unnecessary re-renders
+  const memoizedCheckAdminStatus = useCallback(checkAdminStatus, [checkAdminStatus]);
+  const memoizedInitSocket = useCallback(initSocket, [initSocket]);
+  const memoizedDisconnectSocket = useCallback(disconnectSocket, [disconnectSocket]);
 
-		initAuth();
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const token = await getToken();
+        updateApiToken(token);
+        if (token) {
+          await memoizedCheckAdminStatus(); // only run if there's a valid token
+          if (userId) {
+            memoizedInitSocket(userId); // only initialize socket if userId exists
+          }
+        }
+      } catch (error: any) {
+        updateApiToken(null);
+        console.error("Error in auth provider", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-		// clean up
-		return () => disconnectSocket();
-	}, [getToken, userId, checkAdminStatus, initSocket, disconnectSocket]);
+    initAuth();
 
-	if (loading)
-		return (
-			<div className='h-screen w-full flex items-center justify-center'>
-				<Loader className='size-8 text-emerald-500 animate-spin' />
-			</div>
-		);
+    // Cleanup
+    return () => {
+      memoizedDisconnectSocket();
+    };
+  }, [getToken, userId, memoizedCheckAdminStatus, memoizedInitSocket, memoizedDisconnectSocket]);
 
-	return <>{children}</>;
+  if (loading)
+    return (
+      <div className="h-screen w-full flex items-center justify-center">
+        <Loader className="size-8 text-emerald-500 animate-spin" />
+      </div>
+    );
+
+  return <>{children}</>;
 };
+
 export default AuthProvider;

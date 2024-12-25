@@ -21,6 +21,7 @@
     "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "gomusiq": "file:..",
     "lucide-react": "^0.468.0",
     "paystack": "^2.0.1",
     "react": "^18.3.1",
